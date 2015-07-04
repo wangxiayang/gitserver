@@ -3,6 +3,7 @@
 import socket
 import signal
 import sys
+import os
 
 HOST = ''   # replace hostname
 PORT = 8888 
@@ -61,8 +62,14 @@ class httpresp:
         r += 'Content-Type: text/html; charset=utf-8\n'
         r += 'Content-Length: ' + repr(len(self.__body)) + '\n'
         r += '\n'
-        r += repr(self.__body) + '\n'
+        r += self.__body + '\n'
         return r
+
+def fail(r, s):
+    f = open('failure.html', 'r')
+    r.setBody(f.read())
+    f.close()
+    s.send(r.getResp())
 
 while 1:
     try:
@@ -89,8 +96,25 @@ while 1:
     print '\33[0;33mReceived:\33[m', req.getMethod(), req.getUrl(), '#'
     if req.getUrl() == '/':
         resp = httpresp(200)
-        resp.setBody('<html><title>hello</title><body>Hello world!<img src=\'favicon.ico\'/></body></html>')
+        f = open('index.html', 'r')
+        resp.setBody(f.read())
+        f.close()
         conn.send(resp.getResp())
+    elif req.getUrl().find('gitinit.py') != -1:
+        reponame = req.getUrl()[22:]
+        resp = httpresp(200)
+        if os.path.isdir('/git/' + reponame + '.git'):
+            # if already exists
+            fail(resp, conn)
+        else:
+            r = os.system('cd /git; git init --bare ' + reponame + '.git')
+            if r != 0:
+                fail(resp, conn)
+            else:
+                f = open('success.html', 'r')
+                resp.setBody(f.read())
+                f.close()
+                conn.send(resp.getResp())
     else:
         resp = httpresp(404)
         resp.setBody('<html><title>Not support</title><body>Not found</body></html>')
